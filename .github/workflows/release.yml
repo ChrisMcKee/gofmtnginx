@@ -1,0 +1,73 @@
+---
+
+name: Release
+
+on:
+  push:
+    tags: [ v*.*.* ]
+
+defaults:
+  run:
+    working-directory: ./src
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: GPG config
+        run: |
+          mkdir -p ~/.gnupg
+          cat << EOF >> ~/.gnupg/options
+          keyserver keys.openpgp.org
+          keyserver-options auto-key-retrieve
+          EOF
+          gpg --keyserver keys.openpgp.org --recv-keys 09BCBD851A844769EDBC49DC8637145C78A9BF43
+
+      - name: Verify tag signature
+        run: |
+          # NOTE: Solve the problem with Github action checkout
+          # https://github.com/actions/checkout/issues/290
+          git fetch --tags --force
+
+          version=${GITHUB_REF#refs/tags/*}
+          git show --oneline $version
+          git tag -v $version
+
+      - name: Set up Go
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9
+        with:
+          go-version: 'stable'
+          check-latest: true
+          cache: true
+          cache-dependency-path: src/go.sum
+      - name: Build release changelog
+        run: |
+          version=${GITHUB_REF#refs/tags/v*}
+          mkdir -p tmp
+          sed '/^# \['$version'\]/,/^# \[/!d;//d;/^\s*$/d' CHANGELOG.md > tmp/release_changelog.md
+          
+      - name: Import GPG key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@111c56156bcc6918c056dbef52164cfa583dc549
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PRIVATE_PASS }}
+
+      - name: Release
+        uses: goreleaser/goreleaser-action@f82d6c1c344bcacabba2c841718984797f664a6b
+        with:
+          distribution: goreleaser
+          args: release --clean --release-notes=tmp/release_changelog.md
+          workdir: ./src
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}

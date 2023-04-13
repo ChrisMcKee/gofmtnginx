@@ -1,0 +1,88 @@
+project_name: gofmtnginx
+env:
+  - GO111MODULE=on
+before:
+  hooks:
+    # You may remove this if you don't use go modules.
+    - go mod tidy
+    # you may remove this if you don't need go generate
+    - go generate ./...
+builds:
+  - &build_default
+    id: gofmtnginx
+    main: ./
+    binary: gofmtnginx-{{.Os}}-{{.Arch}}
+    no_unique_dist_dir: true
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+      - goarch: arm
+
+  - <<: *build_default
+    id: gofmtnginx-arm
+    goarch:
+      - arm
+    goarm:
+      - "6"
+      - "7"
+    ignore:
+      - goos: windows
+        goarch: arm
+    binary: gofmtnginx-{{.Os}}-{{.Arch}}v{{.Arm}}
+
+  - <<: *build_default
+    id: pkg-gofmtnginx
+    no_unique_dist_dir: false
+    binary: gofmtnginx
+
+signs:
+  - artifacts: checksum
+    args: ["--batch", "-u", "{{ .Env.GPG_FINGERPRINT }}", "--output", "${signature}", "--detach-sign", "${artifact}"]
+    
+checksum:
+  name_template: checksums.txt
+
+nfpms:
+  - id: packages
+    package_name: gofmtnginx
+    homepage: https://github.com/ChrisMcKee/gofmtnginx
+    maintainer: Chris McKee <pcdevils@gmail.com>
+    description: Recursively formats a directory tree of nginx configs
+    license: MIT
+    bindir: /usr/bin
+    builds:
+      - pkg-gofmtnginx
+    formats:
+      - apk
+      - deb
+      - rpm
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - ^Merge
+
+archives:
+  - id: archive_binaries
+    format: binary
+    name_template: "{{ .Binary }}"
+    builds:
+      - gofmtnginx
+
+  - id: archive_default
+    format: tar.gz
+    builds:
+      - pkg-gofmtnginx
