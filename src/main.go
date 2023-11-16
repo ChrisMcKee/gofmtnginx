@@ -91,7 +91,9 @@ func formatConfig(fileName string, indentSize string, removeComments bool) {
 			formattedLines = append(formattedLines, formattedLine)
 			indentLevel++
 		} else if strings.HasPrefix(line, "}") {
-			indentLevel--
+			if indentLevel > 0 {
+				indentLevel--
+			}
 			formattedLine := strings.TrimRight(fmt.Sprintf("%s%s", strings.Repeat(indent, indentLevel), line), " ")
 			formattedLines = append(formattedLines, formattedLine)
 		} else {
