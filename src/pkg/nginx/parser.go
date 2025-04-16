@@ -7,14 +7,12 @@ import (
 	"strings"
 )
 
-// Formatter handles nginx configuration formatting
 type Formatter struct {
 	IndentSize       int
 	RemoveComments   bool
 	PreserveNewlines bool
 }
 
-// New creates a new Formatter instance
 func New(indentSize int, removeComments bool, preserveNewlines bool) *Formatter {
 	return &Formatter{
 		IndentSize:       indentSize,
@@ -55,20 +53,7 @@ func (f *Formatter) FormatFile(fileName string) ([]string, error) {
 			}
 		}
 
-		if strings.HasSuffix(line, "{") {
-			formattedLine := strings.TrimRight(fmt.Sprintf("%s%s", strings.Repeat(" ", indentLevel*f.IndentSize), line), " ")
-			formattedLines = append(formattedLines, formattedLine)
-			indentLevel++
-		} else if strings.HasPrefix(line, "}") {
-			if indentLevel > 0 {
-				indentLevel--
-			}
-			formattedLine := strings.TrimRight(fmt.Sprintf("%s%s", strings.Repeat(" ", indentLevel*f.IndentSize), line), " ")
-			formattedLines = append(formattedLines, formattedLine)
-		} else {
-			formattedLine := strings.TrimRight(fmt.Sprintf("%s%s", strings.Repeat(" ", indentLevel*f.IndentSize), line), " ")
-			formattedLines = append(formattedLines, formattedLine)
-		}
+		formattedLines = append(formattedLines, f.processLine(line, &indentLevel)...)
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -78,7 +63,59 @@ func (f *Formatter) FormatFile(fileName string) ([]string, error) {
 	return formattedLines, nil
 }
 
-// WriteFormatted writes formatted lines to a file
+func (f *Formatter) processLine(line string, indentLevel *int) []string {
+	var result []string
+
+	// Handle empty lines
+	if line == "" {
+		if f.PreserveNewlines {
+			return []string{""}
+		}
+		return nil
+	}
+
+	parts := strings.Split(line, "{")
+	for i, part := range parts {
+		if i > 0 {
+			// For parts after the first one, we need to add the opening brace to the previous line
+			if len(result) > 0 {
+				result[len(result)-1] = result[len(result)-1] + " {"
+			} else {
+				result = append(result, strings.TrimRight(fmt.Sprintf("%s{", strings.Repeat(" ", *indentLevel*f.IndentSize)), " "))
+			}
+			*indentLevel++
+		}
+
+		// Process each part for closing braces in case of multiple closing braces
+		if strings.TrimSpace(part) != "" {
+			closeParts := strings.Split(part, "}")
+
+			// Process the content before any closing braces
+			if strings.TrimSpace(closeParts[0]) != "" {
+				formattedLine := strings.TrimRight(fmt.Sprintf("%s%s", strings.Repeat(" ", *indentLevel*f.IndentSize), strings.TrimSpace(closeParts[0])), " ")
+				result = append(result, formattedLine)
+			}
+
+			// Process each closing brace
+			for j := 1; j < len(closeParts); j++ {
+				if *indentLevel > 0 {
+					*indentLevel--
+				}
+				formattedLine := strings.TrimRight(fmt.Sprintf("%s}", strings.Repeat(" ", *indentLevel*f.IndentSize)), " ")
+				result = append(result, formattedLine)
+
+				// Process any content after the closing brace
+				if strings.TrimSpace(closeParts[j]) != "" {
+					formattedLine := strings.TrimRight(fmt.Sprintf("%s%s", strings.Repeat(" ", *indentLevel*f.IndentSize), strings.TrimSpace(closeParts[j])), " ")
+					result = append(result, formattedLine)
+				}
+			}
+		}
+	}
+
+	return result
+}
+
 func WriteFormatted(fileName string, formatted []string) error {
 	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {

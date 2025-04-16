@@ -132,27 +132,35 @@ server {
 			},
 			indentSize: 2,
 		},
-		// 		{
-		// 			name: "curly braces grouped",
-		// 			input: `http {
-
-		// server {
-
-		//     listen 80;
-
-		// }}`,
-		// 			expected: []string{
-		// 				"http {",
-		// 				"",
-		// 				"  server {",
-		// 				"",
-		// 				"    listen 80;",
-		// 				"",
-		// 				"  }",
-		// 				"}",
-		// 			},
-		// 			indentSize: 2,
-		// 		},
+		{
+			name:  "multiple closing braces",
+			input: `http{ server{ location / { return 200; }}}`,
+			expected: []string{
+				"http {",
+				"  server {",
+				"    location / {",
+				"      return 200;",
+				"    }",
+				"  }",
+				"}",
+			},
+			indentSize: 2,
+		},
+		{
+			name:  "multiple closing braces with content",
+			input: `http{ server{ location / { return 200; }} server_name example.com;}`,
+			expected: []string{
+				"http {",
+				"  server {",
+				"    location / {",
+				"      return 200;",
+				"    }",
+				"  }",
+				"  server_name example.com;",
+				"}",
+			},
+			indentSize: 2,
+		},
 	}
 
 	for _, tt := range tests {
