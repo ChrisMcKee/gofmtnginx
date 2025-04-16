@@ -1,3 +1,3 @@
-module gofmtnginx
+module github.com/ChrisMcKee/gofmtnginx
 
-go 1.20
+go 1.24
