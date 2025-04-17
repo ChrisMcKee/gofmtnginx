@@ -55,6 +55,9 @@ jobs:
           check-latest: true
           cache: true
           cache-dependency-path: src/go.sum
+          
+      - name: Set up syft
+        run: go install github.com/anchore/syft/cmd/syft@latest
 
       - name: Build release changelog
         run: |
