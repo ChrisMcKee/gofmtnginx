@@ -7,7 +7,7 @@ env:
 
 builds:
   - id: gofmtnginx
-    main: ./src/cmd/gofmtnginx/main.go
+    main: ./cmd/gofmtnginx/main.go
     binary: gofmtnginx-{{.Os}}-{{.Arch}}
     no_unique_dist_dir: true
     env:
@@ -27,7 +27,7 @@ builds:
     ldflags:
       # use commit date instead of current date as main.date
       # only needed if you actually use those things in your main package, otherwise can be ignored.
-      - -s -w -X github.com//ChrisMcKee/gofmtnginx/v1.Version={{.Version}}
+      - -s -w -X github.com/ChrisMcKee/gofmtnginx/v1.Version={{.Version}}
     ignore:
       - goos: windows
         goarch: arm64
