@@ -37,19 +37,11 @@ func (f *Formatter) FormatFile(fileName string) ([]string, error) {
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
-		// Remove line comments
+		// Remove line comments if requested
 		if f.RemoveComments {
-			if strings.HasPrefix(line, "#") {
-				continue
-			}
-
-			if strings.Contains(line, "#") {
-				before, _, found := strings.Cut(line, "#")
-				if found && len(before) > 0 {
-					line = before
-				} else {
-					continue
-				}
+			line = removeCommentsConsideringQuotes(line)
+			if line == "" {
+				continue // Skip lines that become empty after comment removal
 			}
 		}
 
@@ -63,10 +55,42 @@ func (f *Formatter) FormatFile(fileName string) ([]string, error) {
 	return formattedLines, nil
 }
 
+// removeCommentsConsideringQuotes removes comments (#) from a line,
+// correctly handling comments inside single or double quotes.
+func removeCommentsConsideringQuotes(line string) string {
+	var result strings.Builder
+	inSingleQuotes := false
+	inDoubleQuotes := false
+	escaped := false
+
+	for _, r := range line {
+		if r == '\\' && !escaped {
+			escaped = true
+			result.WriteRune(r)
+			continue
+		}
+
+		if r == '\'' && !escaped {
+			inSingleQuotes = !inSingleQuotes
+		} else if r == '"' && !escaped {
+			inDoubleQuotes = !inDoubleQuotes
+		} else if r == '#' && !inSingleQuotes && !inDoubleQuotes && !escaped {
+			// Found a comment marker outside quotes, stop processing
+			break
+		}
+
+		result.WriteRune(r)
+		escaped = false // Reset escaped flag after processing the character
+	}
+
+	return strings.TrimSpace(result.String())
+}
+
 func (f *Formatter) processLine(line string, indentLevel *int) []string {
 	var result []string
+	line = strings.TrimSpace(line) // Ensure leading/trailing spaces are removed
 
-	// Handle empty lines
+	// Handle empty lines after potential comment removal
 	if line == "" {
 		if f.PreserveNewlines {
 			return []string{""}
@@ -74,43 +98,75 @@ func (f *Formatter) processLine(line string, indentLevel *int) []string {
 		return nil
 	}
 
-	parts := strings.Split(line, "{")
-	for i, part := range parts {
-		if i > 0 {
-			// For parts after the first one, we need to add the opening brace to the previous line
-			if len(result) > 0 {
-				result[len(result)-1] = result[len(result)-1] + " {"
-			} else {
-				result = append(result, strings.TrimRight(fmt.Sprintf("%s{", strings.Repeat(" ", *indentLevel*f.IndentSize)), " "))
-			}
-			*indentLevel++
+	var currentLine strings.Builder
+	indentStr := func() string {
+		return strings.Repeat(" ", *indentLevel*f.IndentSize)
+	}
+
+	inSingleQuotes := false
+	inDoubleQuotes := false
+	escaped := false
+
+	// Scan through the line character by character
+	for i := 0; i < len(line); i++ {
+		r := rune(line[i])
+
+		// Handle escape character
+		if r == '\\' && !escaped {
+			escaped = true
+			currentLine.WriteRune(r)
+			continue
 		}
 
-		// Process each part for closing braces in case of multiple closing braces
-		if strings.TrimSpace(part) != "" {
-			closeParts := strings.Split(part, "}")
+		// Track quote status
+		if r == '\'' && !escaped {
+			inSingleQuotes = !inSingleQuotes
+		} else if r == '"' && !escaped {
+			inDoubleQuotes = !inDoubleQuotes
+		}
 
-			// Process the content before any closing braces
-			if strings.TrimSpace(closeParts[0]) != "" {
-				formattedLine := strings.TrimRight(fmt.Sprintf("%s%s", strings.Repeat(" ", *indentLevel*f.IndentSize), strings.TrimSpace(closeParts[0])), " ")
-				result = append(result, formattedLine)
-			}
-
-			// Process each closing brace
-			for j := 1; j < len(closeParts); j++ {
+		// Process special characters only if not inside quotes
+		if !inSingleQuotes && !inDoubleQuotes {
+			switch r {
+			case '{':
+				// Append content before '{', add the line, then start a new line for '{'
+				if currentLine.Len() > 0 {
+					result = append(result, indentStr()+strings.TrimSpace(currentLine.String())+" {")
+					currentLine.Reset()
+				} else {
+					// If '{' is the first non-space char, or follows a '}' on the same line
+					result = append(result, indentStr()+"{")
+				}
+				*indentLevel++
+				continue // Continue to next char after handling brace
+			case '}':
+				// Append content before '}', add the line, then start a new line for '}'
+				if currentLine.Len() > 0 {
+					result = append(result, indentStr()+strings.TrimSpace(currentLine.String()))
+					currentLine.Reset()
+				}
 				if *indentLevel > 0 {
 					*indentLevel--
 				}
-				formattedLine := strings.TrimRight(fmt.Sprintf("%s}", strings.Repeat(" ", *indentLevel*f.IndentSize)), " ")
-				result = append(result, formattedLine)
-
-				// Process any content after the closing brace
-				if strings.TrimSpace(closeParts[j]) != "" {
-					formattedLine := strings.TrimRight(fmt.Sprintf("%s%s", strings.Repeat(" ", *indentLevel*f.IndentSize), strings.TrimSpace(closeParts[j])), " ")
-					result = append(result, formattedLine)
-				}
+				result = append(result, indentStr()+"}")
+				continue // Continue to next char after handling brace
+			case ';':
+				// Append content before ';', add the line including ';'
+				currentLine.WriteRune(r)
+				result = append(result, indentStr()+strings.TrimSpace(currentLine.String()))
+				currentLine.Reset()
+				continue // Continue to next char after handling semicolon
 			}
 		}
+
+		// Append the current character if it wasn't a special char handled above
+		currentLine.WriteRune(r)
+		escaped = false // Reset escaped flag after processing the character
+	}
+
+	// Add any remaining content on the line (if no ';' or '}' was found)
+	if currentLine.Len() > 0 {
+		result = append(result, indentStr()+strings.TrimSpace(currentLine.String()))
 	}
 
 	return result
