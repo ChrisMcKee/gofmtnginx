@@ -25,11 +25,13 @@ jobs:
       - name: GPG config
         run: |
           mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
           cat << EOF >> ~/.gnupg/gpg.conf
           keyserver hkps://keys.openpgp.org
           auto-key-import
           auto-key-retrieve
           EOF
+          chmod 600 ~/.gnupg/gpg.conf
 
       - name: Verify tag signature
         run: |
