@@ -33,13 +33,20 @@ jobs:
 
       - name: Verify tag signature
         run: |
-          # NOTE: Solve the problem with Github action checkout
-          # https://github.com/actions/checkout/issues/290
+          # Fetch all tags and ensure they are up-to-date
           git fetch --tags --force
-
-          version=${GITHUB_REF#refs/tags/*}
-          git show --oneline $version
-          git tag -v $version
+      
+          # Extract the tag version
+          version=${GITHUB_REF#refs/tags/}
+      
+          # Validate if the version is a valid tag
+          if git rev-parse "$version" >/dev/null 2>&1; then
+            echo "Verifying tag $version"
+            git tag -v "$version"
+          else
+            echo "Error: Tag $version does not exist or is invalid."
+            exit 1
+          fi
 
       - name: Set up Go
         uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b #5.4.0
