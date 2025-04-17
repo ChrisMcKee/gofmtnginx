@@ -25,11 +25,11 @@ jobs:
       - name: GPG config
         run: |
           mkdir -p ~/.gnupg
-          cat << EOF >> ~/.gnupg/options
-          keyserver keys.openpgp.org
-          keyserver-options auto-key-retrieve
+          cat << EOF >> ~/.gnupg/gpg.conf
+          keyserver hkps://keys.openpgp.org
+          auto-key-import
+          auto-key-retrieve
           EOF
-          gpg --keyserver keys.openpgp.org --recv-keys 09BCBD851A844769EDBC49DC8637145C78A9BF43
 
       - name: Verify tag signature
         run: |
@@ -57,13 +57,13 @@ jobs:
 
       - name: Import GPG key
         id: import_gpg
-        uses: crazy-max/ghaction-import-gpg@111c56156bcc6918c056dbef52164cfa583dc549
+        uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # 6.3.0
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PRIVATE_PASS }}
 
       - name: Release
-        uses: goreleaser/goreleaser-action@f82d6c1c344bcacabba2c841718984797f664a6b
+        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 #6.3.0
         with:
           distribution: goreleaser
           args: release --clean --release-notes=tmp/release_changelog.md

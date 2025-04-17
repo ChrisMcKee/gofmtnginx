@@ -1,19 +1,13 @@
-# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
-# vim: set ts=2 sw=2 tw=0 fo=jcroql
+version: 2
 
 project_name: gofmtnginx
+
 env:
   - GO111MODULE=on
-before:
-  hooks:
-    # You may remove this if you don't use go modules.
-    - go mod tidy
-    # you may remove this if you don't need go generate
-    - go generate ./...
+
 builds:
-  - &build_default
-    id: gofmtnginx
-    main: ./
+  - id: gofmtnginx
+    main: ./src/cmd/gofmtnginx/main.go
     binary: gofmtnginx-{{.Os}}-{{.Arch}}
     no_unique_dist_dir: true
     env:
@@ -25,35 +19,35 @@ builds:
     goarch:
       - amd64
       - arm64
+    # ensures mod timestamp to be the commit timestamp
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      # trims path
+      - -trimpath
+    ldflags:
+      # use commit date instead of current date as main.date
+      # only needed if you actually use those things in your main package, otherwise can be ignored.
+      - -s -w -X github.com//ChrisMcKee/gofmtnginx/v1.Version={{.Version}}
     ignore:
       - goos: windows
         goarch: arm64
-
-      - goarch: arm
-
-  - <<: *build_default
-    id: gofmtnginx-arm
-    goarch:
-      - arm
-    goarm:
-      - "6"
-      - "7"
-    ignore:
-      - goos: windows
+      - goos: linux
         goarch: arm
-    binary: gofmtnginx-{{.Os}}-{{.Arch}}v{{.Arm}}
-
-  - <<: *build_default
-    id: pkg-gofmtnginx
-    no_unique_dist_dir: false
-    binary: gofmtnginx
-
-signs:
-  - artifacts: checksum
-    args: ["--batch", "-u", "{{ .Env.GPG_FINGERPRINT }}", "--output", "${signature}", "--detach-sign", "${artifact}"]
-    
+  
 checksum:
   name_template: checksums.txt
+
+source:
+  enabled: true
+
+sboms:
+  - artifacts: archive
+  - id: source # Two different sbom configurations need two different IDs
+    artifacts: source
+
+signs:
+  - artifacts: package
+    args: ["--batch", "-u", "{{ .Env.GPG_FINGERPRINT }}", "--output", "${signature}", "--detach-sign", "${artifact}"]
 
 nfpms:
   - id: packages
@@ -64,7 +58,7 @@ nfpms:
     license: MIT
     bindir: /usr/bin
     builds:
-      - pkg-gofmtnginx
+      - gofmtnginx
     formats:
       - apk
       - deb
@@ -88,4 +82,4 @@ archives:
   - id: archive_default
     format: tar.gz
     builds:
-      - pkg-gofmtnginx
+      - gofmtnginx
