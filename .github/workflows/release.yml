@@ -1,15 +1,9 @@
 ---
-
 name: Release
-
 
 on:
   push:
-    branches:
-      - "main"
-    tags:
-      - "v*"
-  pull_request:
+    tags: [v*.*.*]
 
 defaults:
   run:
@@ -31,50 +25,45 @@ jobs:
       - name: GPG config
         run: |
           mkdir -p ~/.gnupg
-          cat << EOF >> ~/.gnupg/options
-          keyserver keys.openpgp.org
-          keyserver-options auto-key-retrieve
+          cat << EOF >> ~/.gnupg/gpg.conf
+          keyserver hkps://keys.openpgp.org
+          auto-key-import
+          auto-key-retrieve
           EOF
-          gpg --keyserver hkps://keys.openpgp.org --recv-keys 09BCBD851A844769EDBC49DC8637145C78A9BF43
 
-#      - name: Verify tag signature
-#        run: |
-#          # NOTE: Solve the problem with Github action checkout
-#          # https://github.com/actions/checkout/issues/290
-#          git fetch --tags --force
-#
-#          version=${GITHUB_REF#refs/tags/*}
-#          git show --oneline $version
-#          git tag -v $version
+      - name: Verify tag signature
+        run: |
+          # NOTE: Solve the problem with Github action checkout
+          # https://github.com/actions/checkout/issues/290
+          git fetch --tags --force
+
+          version=${GITHUB_REF#refs/tags/*}
+          git show --oneline $version
+          git tag -v $version
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b #5.4.0
         with:
-          go-version: 'stable'
+          go-version: "stable"
           check-latest: true
           cache: true
           cache-dependency-path: src/go.sum
 
-      - run: go test -v -failfast -race
-
-      - if: success() && startsWith(github.ref, 'refs/tags/')
-        name: Build release changelog
+      - name: Build release changelog
         run: |
           version=${GITHUB_REF#refs/tags/v*}
           mkdir -p tmp
           sed '/^# \['$version'\]/,/^# \[/!d;//d;/^\s*$/d' CHANGELOG.md > tmp/release_changelog.md
-          
-      - if: success() && startsWith(github.ref, 'refs/tags/')
-        name: Import GPG key
+
+      - name: Import GPG key
         id: import_gpg
-        uses: crazy-max/ghaction-import-gpg@82a020f1f7f605c65dd2449b392a52c3fcfef7ef
+        uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # 6.3.0
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PRIVATE_PASS }}
 
-      - if: success() && startsWith(github.ref, 'refs/tags/')
-        name: Release
-        uses: goreleaser/goreleaser-action@v5
+      - name: Release
+        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 #6.3.0
         with:
           distribution: goreleaser
           args: release --clean --release-notes=tmp/release_changelog.md
