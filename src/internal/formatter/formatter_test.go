@@ -11,14 +11,12 @@ import (
 )
 
 func TestProcessFile(t *testing.T) {
-	// Create a test directory
 	tmpDir, err := os.MkdirTemp("", "gofmtnginx-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Create test files
 	files := map[string]string{
 		"test1.conf": `server {
 listen 80;
@@ -32,14 +30,12 @@ server {
 }`,
 	}
 
-	// Create test files
 	for name, content := range files {
 		path := filepath.Join(tmpDir, name)
 		err := os.WriteFile(path, []byte(content), 0o644)
 		if err != nil {
 			t.Fatalf("Failed to create test file %s: %v", name, err)
 		}
-		// Verify file was created
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("Failed to verify test file %s exists: %v", name, err)
 		}
@@ -54,7 +50,6 @@ server {
 
 	f := New(cfg)
 
-	// Process each file
 	for name := range files {
 		path := filepath.Join(tmpDir, name)
 		if f.shouldProcessFile(path) {
@@ -66,7 +61,6 @@ server {
 		}
 	}
 
-	// Verify stats
 	stats := f.Stats()
 	if stats.FilesProcessed != 2 { // Only .conf files should be processed
 		t.Errorf("Expected 2 files processed, got %d", stats.FilesProcessed)
@@ -90,14 +84,12 @@ server {
 }
 
 func TestProcessDirectory(t *testing.T) {
-	// Create a test directory
 	tmpDir, err := os.MkdirTemp("", "gofmtnginx-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Create test files
 	for i := 0; i < 10; i++ {
 		content := fmt.Sprintf(`server {
   listen 80;
@@ -114,7 +106,6 @@ func TestProcessDirectory(t *testing.T) {
 			t.Fatalf("Failed to create test file %d: %v", i, err)
 		}
 
-		// Verify file was created
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("Failed to verify test file %d exists: %v", i, err)
 		}
@@ -133,7 +124,6 @@ func TestProcessDirectory(t *testing.T) {
 		t.Errorf("Error processing directory: %v", err)
 	}
 
-	// Verify all files were processed
 	stats := f.Stats()
 	if stats.FilesProcessed != 10 {
 		t.Errorf("Expected 10 files processed, got %d", stats.FilesProcessed)

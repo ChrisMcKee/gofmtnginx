@@ -35,17 +35,33 @@ func (f *Formatter) FormatFile(fileName string) ([]string, error) {
 	var formattedLines []string
 
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+		originalLine := scanner.Text() // Keep original line to check for original emptiness
+		line := strings.TrimSpace(originalLine)
 
-		// Remove line comments if requested
-		if f.RemoveComments {
-			line = removeCommentsConsideringQuotes(line)
-			if line == "" {
-				continue // Skip lines that become empty after comment removal
-			}
+		// Handle lines that are purely comments first, if not removing comments
+		if !f.RemoveComments && strings.HasPrefix(line, "#") {
+			indentStr := strings.Repeat(" ", indentLevel*f.IndentSize)
+			formattedLines = append(formattedLines, indentStr+line)
+			continue
 		}
 
-		formattedLines = append(formattedLines, f.processLine(line, &indentLevel)...)
+		// Remove comments if requested (handles comments starting mid-line)
+		if f.RemoveComments {
+			line = removeComments(line)
+		}
+
+		if line == "" {
+			// Only preserve newline if requested AND it wasn't caused by comment removal
+			// OR if the original line was only whitespace
+			if f.PreserveNewlines && (!f.RemoveComments || strings.TrimSpace(originalLine) == "") {
+				formattedLines = append(formattedLines, "")
+			}
+			continue // Skip processing for effectively empty lines
+		}
+
+		// Process non-empty, non-comment lines
+		processed := f.processLine(line, &indentLevel)
+		formattedLines = append(formattedLines, processed...)
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -55,9 +71,8 @@ func (f *Formatter) FormatFile(fileName string) ([]string, error) {
 	return formattedLines, nil
 }
 
-// removeCommentsConsideringQuotes removes comments (#) from a line,
-// correctly handling comments inside single or double quotes.
-func removeCommentsConsideringQuotes(line string) string {
+// removeComments removes comments (#) from a line
+func removeComments(line string) string {
 	var result strings.Builder
 	inSingleQuotes := false
 	inDoubleQuotes := false
@@ -80,7 +95,7 @@ func removeCommentsConsideringQuotes(line string) string {
 		}
 
 		result.WriteRune(r)
-		escaped = false // Reset escaped flag after processing the character
+		escaped = false
 	}
 
 	return strings.TrimSpace(result.String())
@@ -88,7 +103,7 @@ func removeCommentsConsideringQuotes(line string) string {
 
 func (f *Formatter) processLine(line string, indentLevel *int) []string {
 	var result []string
-	line = strings.TrimSpace(line) // Ensure leading/trailing spaces are removed
+	line = strings.TrimSpace(line)
 
 	// Handle empty lines after potential comment removal
 	if line == "" {
@@ -107,11 +122,7 @@ func (f *Formatter) processLine(line string, indentLevel *int) []string {
 	inDoubleQuotes := false
 	escaped := false
 
-	// Scan through the line character by character
-	for i := 0; i < len(line); i++ {
-		r := rune(line[i])
-
-		// Handle escape character
+	for _, r := range line {
 		if r == '\\' && !escaped {
 			escaped = true
 			currentLine.WriteRune(r)
@@ -138,7 +149,7 @@ func (f *Formatter) processLine(line string, indentLevel *int) []string {
 					result = append(result, indentStr()+"{")
 				}
 				*indentLevel++
-				continue // Continue to next char after handling brace
+				continue
 			case '}':
 				// Append content before '}', add the line, then start a new line for '}'
 				if currentLine.Len() > 0 {
@@ -149,24 +160,24 @@ func (f *Formatter) processLine(line string, indentLevel *int) []string {
 					*indentLevel--
 				}
 				result = append(result, indentStr()+"}")
-				continue // Continue to next char after handling brace
+				continue
 			case ';':
-				// Append content before ';', add the line including ';'
+				// Semicolon marks the end of a directive, but there might be inline comments.
 				currentLine.WriteRune(r)
-				result = append(result, indentStr()+strings.TrimSpace(currentLine.String()))
-				currentLine.Reset()
-				continue // Continue to next char after handling semicolon
+				continue
 			}
 		}
 
-		// Append the current character if it wasn't a special char handled above
 		currentLine.WriteRune(r)
-		escaped = false // Reset escaped flag after processing the character
+		escaped = false
 	}
 
-	// Add any remaining content on the line (if no ';' or '}' was found)
+	// Add any remaining content on the line
 	if currentLine.Len() > 0 {
-		result = append(result, indentStr()+strings.TrimSpace(currentLine.String()))
+		finalLine := strings.TrimRight(currentLine.String(), " ")
+		if finalLine != "" {
+			result = append(result, indentStr()+finalLine)
+		}
 	}
 
 	return result

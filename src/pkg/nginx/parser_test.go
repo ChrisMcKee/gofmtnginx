@@ -91,6 +91,41 @@ server {
 			removeComments: true,
 		},
 		{
+			name: "inline comments",
+			input: `server {
+    listen 80; # HTTP port
+    server_name example.com; # Domain name
+}`,
+			expected: []string{
+				"server {",
+				"  listen 80; # HTTP port",
+				"  server_name example.com; # Domain name",
+				"}",
+			},
+			indentSize: 2,
+		},
+		{
+			name: "remove inline comments with closing brace",
+			input: `server {
+    listen 80; # HTTP port
+    server_name example.com; # Domain name
+	#location / {
+	#return 200;
+	#}
+}`,
+			expected: []string{
+				"server {",
+				"  listen 80; # HTTP port",
+				"  server_name example.com; # Domain name",
+				"  #location / {",
+				"  #return 200;",
+				"  #}",
+				"}",
+			},
+			indentSize:     2,
+			removeComments: false,
+		},
+		{
 			name: "nested blocks",
 			input: `http {
     server {
